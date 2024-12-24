@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Prediction Webpage</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .container {
+            width: 90%;
+            max-width: 500px;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            transition: background-color 0.3s ease;
+        }
+        .image-container {
+            position: relative;
+            width: 100%;
+            margin: 0 auto;
+            overflow: hidden;
+            border-radius: 10px;
+        }
+        canvas {
+            width: 100%;
+            height: auto;
+            border-radius: 10px;
+        }
+        #prediction {
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+        button {
+            margin-top: 15px;
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            color: white;
+            background: #007BFF;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        #error-message {
+            color: red;
+            font-size: 16px;
+            margin-top: 15px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="container">
+        <h2>Image Prediction</h2>
+        <div class="image-container">
+            <canvas id="canvas"></canvas>
+        </div>
+        <p id="prediction">Waiting for prediction...</p>
+        <button id="start-button">Start Capture</button>
+        <p id="error-message">Unable to access the webcam. Please check your permissions.</p>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const predictionElement = document.getElementById('prediction');
+        const startButton = document.getElementById('start-button');
+        const errorMessage = document.getElementById('error-message');
+        const container = document.getElementById('container');
+        const ctx = canvas.getContext('2d');
+
+        let videoStream = null;
+        let videoElement = null;
+
+        // Start webcam and hide the video element
+        async function startVideo() {
+            try {
+                videoElement = document.createElement('video');
+                videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                videoElement.srcObject = videoStream;
+                videoElement.play();
+                errorMessage.style.display = 'none';
+                startCapture();
+            } catch (err) {
+                console.error('Error accessing webcam:', err);
+                errorMessage.style.display = 'block';
+            }
+        }
+
+        // Capture and display image every 5 seconds
+        function startCapture() {
+            setInterval(() => {
+                if (videoElement && videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
+                    canvas.width = videoElement.videoWidth;
+                    canvas.height = videoElement.videoHeight;
+                    ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+                    const imageData = canvas.toDataURL('image/png');
+                    sendForPrediction(imageData);
+                }
+            }, 5000);
+        }
+
+        // Send the captured image for prediction
+        function sendForPrediction(imageData) {
+            fetch('/predict', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: imageData })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.prediction === 'okay') {
+                        predictionElement.textContent = 'Prediction: Okay';
+                        container.style.backgroundColor = '#d4edda'; // Light green for okay
+                    } else {
+                        predictionElement.textContent = 'Prediction: Not Okay';
+                        container.style.backgroundColor = '#f8d7da'; // Light red for not okay
+                    }
+                })
+                .catch(err => {
+                    console.error('Error predicting image:', err);
+                    predictionElement.textContent = 'Error in prediction';
+                });
+        }
+
+        // Start the process on button click
+        startButton.addEventListener('click', startVideo);
+    </script>
+</body>
+</html>
